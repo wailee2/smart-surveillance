@@ -1,0 +1,36 @@
+# ── Web Framework ─────────────────────────────────────────────────────────
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+jinja2>=3.1.4
+pydantic-settings>=2.2.1
+
+# ── Computer Vision ────────────────────────────────────────────────────────
+ultralytics>=8.2.18          # YOLOv11 + ByteTrack
+supervision>=0.21.0          # detection utilities + annotators
+opencv-python-headless>=4.10.0
+
+# ── Deep Learning (CPU) ───────────────────────────────────────────────────
+# ── Deep Learning (CPU) ───────────────────────────────────────────────────
+# Install PyTorch CPU-only build to keep the image lean.
+# On a CUDA machine, replace with:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+torch>=2.6.0
+torchvision>=0.21.0
+
+# ── Depth Estimation ──────────────────────────────────────────────────────
+transformers>=4.41.2
+huggingface-hub>=0.23.2
+
+# ── OCR ───────────────────────────────────────────────────────────────────
+easyocr>=1.7.1
+
+# ── Data ──────────────────────────────────────────────────────────────────
+pandas>=2.2.2
+numpy>=2.1.0
+
+# ── Utilities ─────────────────────────────────────────────────────────────
+python-dotenv==1.0.1
+tqdm>=4.66.4
+Pillow>=10.3.0
+

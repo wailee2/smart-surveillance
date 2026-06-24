@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+env/
+
+# Environment
+.env
+
+# Model weights (large files — distribute separately)
+weights/*.pt
+weights/*.onnx
+
+# Outputs (generated at runtime)
+static/uploads/
+static/outputs/
+
+# HuggingFace cache
+.cache/
+
+# Jupyter / Colab
+*.ipynb_checkpoints/
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+nxt.txt
