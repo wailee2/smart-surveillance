@@ -1,227 +1,222 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Smart Surveillance & Speed Detection</title>
-  <link rel="stylesheet" href="/static/css/style.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smart Surveillance System</title>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
 </head>
 <body>
-  <!-- ── Sidebar ── -->
-  <aside class="sidebar">
-    <div class="sidebar-logo">
-      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-        <circle cx="14" cy="14" r="13" stroke="#4f8ef7" stroke-width="2"/>
-        <circle cx="14" cy="10" r="3" fill="#4f8ef7"/>
-        <path d="M7 20c0-3.866 3.134-7 7-7s7 3.134 7 7" stroke="#4f8ef7" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-      <span>SurveillanceAI</span>
+
+<!-- ═══════════════════════ TOP BAR ═══════════════════════════════════════ -->
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="logo-text">SMART SURVEILLANCE SYSTEM</div>
+    <div class="topbar-divider"></div>
+    <div class="topbar-tag">TRAFFIC VIOLATION</div>
+  </div>
+  <div class="topbar-right">
+    <div class="analyzing-badge" id="analyzing-badge">
+      <span class="pulse-dot"></span> STANDBY
+    </div>
+    <div class="clock" id="clock">00:00:00</div>
+  </div>
+</header>
+
+<!-- ═══════════════════════ MAIN LAYOUT ═══════════════════════════════════ -->
+<div class="layout">
+
+  <!-- ══════════ LEFT PANEL ══════════════════════════════════════════════ -->
+  <aside class="left-panel">
+
+    <!-- Stop Line -->
+    <div class="panel-section">
+      <div class="section-label">STOP LINE</div>
+      <div class="hint-list">
+        <div class="hint">① Upload video or connect camera</div>
+        <div class="hint">② Click &amp; drag on the feed to draw stop line</div>
+        <div class="hint">③ Line turns red when set</div>
+      </div>
+      <div class="line-status hidden" id="line-status-box">
+        <span class="line-ok">✓ LINE SET</span>
+        <span id="line-coords" class="line-coords"></span>
+      </div>
+      <div class="stop-line-input-row">
+        <label class="nano-label">Manual Y (px)</label>
+        <input type="number" id="stop-line-y" placeholder="auto" class="nano-input"/>
+        <button class="btn-draw" id="draw-line-btn" title="Draw on first frame">✏</button>
+      </div>
     </div>
 
-    <nav class="sidebar-nav">
-      <a href="#upload-section" class="nav-item active" data-section="upload">
-        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-        Upload
-      </a>
-      <a href="#results-section" class="nav-item" data-section="results">
-        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-        Results
-      </a>
-      <a href="#offenders-section" class="nav-item" data-section="offenders">
-        <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        Violations
-      </a>
-    </nav>
+    <!-- Virtual Traffic Light -->
+    <div class="panel-section">
+      <div class="section-label">VIRTUAL TRAFFIC LIGHT</div>
+      <label class="toggle-row">
+        <div class="toggle-wrap">
+          <input type="checkbox" id="vtl-enabled" checked/>
+          <span class="toggle-slider"></span>
+        </div>
+        <span class="toggle-label" id="vtl-toggle-label">ENABLED – select signal below</span>
+      </label>
 
-    <div class="sidebar-status">
-      <div class="status-dot" id="status-dot"></div>
-      <div>
-        <div class="status-label">System Status</div>
-        <div class="status-value" id="status-text">Checking…</div>
+      <div class="traffic-light-widget" id="traffic-light-widget">
+        <div class="tl-pole">
+          <div class="tl-housing">
+            <div class="tl-bulb red"   id="tl-red"></div>
+            <div class="tl-bulb amber" id="tl-amber"></div>
+            <div class="tl-bulb green active" id="tl-green"></div>
+          </div>
+          <div class="tl-tag">VTL</div>
+        </div>
+        <div class="tl-buttons">
+          <button class="tl-btn red"   id="vtl-red-btn">● RED</button>
+          <button class="tl-btn amber" id="vtl-amber-btn">● AMBER</button>
+          <button class="tl-btn green active" id="vtl-green-btn">● GREEN</button>
+        </div>
       </div>
+
+      <div class="vtl-mode-label" id="vtl-mode-label">● GREEN – normal mode</div>
+    </div>
+
+    <!-- Controls -->
+    <div class="panel-section">
+      <div class="section-label">CONTROLS</div>
+      <input type="file" id="file-input" accept="video/*" hidden/>
+      <button class="ctrl-btn start" id="start-btn">▶ START ANALYSIS</button>
+      <button class="ctrl-btn abort hidden" id="abort-btn">■ ABORT</button>
+
+      <div class="config-mini">
+        <div class="mini-row">
+          <span>Speed Limit</span>
+          <input type="number" id="speed-limit" value="50" class="nano-input" style="width:52px"/>
+          <span>km/h</span>
+        </div>
+        <div class="mini-row">
+          <span>Confidence</span>
+          <input type="range" id="conf-slider" min="10" max="90" value="40" class="mini-slider"/>
+          <span id="conf-val">40%</span>
+        </div>
+        <div class="mini-row">
+          <label><input type="checkbox" id="vtl-override-proc"/> Use VTL for detection</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Session Stats -->
+    <div class="panel-section">
+      <div class="section-label">SESSION STATS</div>
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-num cyan" id="stat-frames">0</div>
+          <div class="stat-lbl">FRAMES</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num red" id="stat-violations">0</div>
+          <div class="stat-lbl">VIOLATIONS</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num" id="stat-fps-val">—</div>
+          <div class="stat-lbl">PROC FPS</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num" id="stat-progress">0%</div>
+          <div class="stat-lbl">PROGRESS</div>
+        </div>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" id="progress-fill" style="width:0%"></div>
+      </div>
+    </div>
+
+    <!-- System status -->
+    <div class="panel-section sys-status-section">
+      <div class="section-label">SYSTEM</div>
+      <div class="sys-row"><span class="sys-key">STATUS</span><span class="sys-val ok" id="sys-status">CHECKING</span></div>
+      <div class="sys-row"><span class="sys-key">DEVICE</span><span class="sys-val" id="sys-device">—</span></div>
+      <div class="sys-row"><span class="sys-key">MODELS</span><span class="sys-val" id="sys-models">—</span></div>
+    </div>
+
+    <!-- History toggle -->
+    <button class="btn-history" id="history-toggle-btn">⏱ SESSION HISTORY</button>
+
+  </aside>
+
+  <!-- ══════════ CENTER: VIDEO FEED ════════════════════════════════════════ -->
+  <section class="feed-panel">
+    <div class="feed-header">
+      <span class="feed-dot"></span>
+      <span id="feed-label">LIVE FEED</span>
+      <span class="feed-meta" id="feed-meta">—</span>
+    </div>
+
+    <!-- Canvas overlay for drawing stop line -->
+    <div class="feed-wrap" id="feed-wrap">
+      <!-- Upload placeholder -->
+      <div class="upload-placeholder" id="upload-placeholder">
+        <div class="upload-icon">
+          <svg viewBox="0 0 64 64" fill="none">
+            <rect x="4" y="4" width="56" height="56" rx="4" stroke="#4f8ef7" stroke-width="1.5" stroke-dasharray="6 4"/>
+            <path d="M32 44V20M22 30l10-10 10 10" stroke="#4f8ef7" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <p class="upload-title">DROP VIDEO HERE</p>
+        <p class="upload-sub">or <button class="link-btn" id="browse-btn">browse files</button></p>
+        <p class="upload-hint">MP4 · AVI · MOV</p>
+      </div>
+
+      <!-- Live MJPEG preview (during processing) -->
+      <img id="live-preview" src="" alt="" class="hidden live-preview-img"/>
+
+      <!-- Stop-line drawing canvas -->
+      <canvas id="draw-canvas" class="hidden draw-canvas"></canvas>
+
+      <!-- Violation flash overlay -->
+      <div class="violation-flash hidden" id="violation-flash">⚠ VIOLATION DETECTED</div>
+    </div>
+
+    <!-- Video player (after processing) -->
+    <div class="video-result-wrap hidden" id="video-result-wrap">
+      <video id="output-video" controls playsinline class="output-video"></video>
+    </div>
+
+    <!-- Job ID / file info bar -->
+    <div class="feed-footer">
+      <span id="footer-file">No file selected</span>
+      <span id="footer-job" class="mono">—</span>
+      <span id="footer-time">—</span>
+    </div>
+  </section>
+
+  <!-- ══════════ RIGHT PANEL: VIOLATIONS ═══════════════════════════════════ -->
+  <aside class="right-panel">
+    <div class="right-header">
+      <div class="violation-alert hidden" id="violation-alert">⚠ VIOLATION DETECTED</div>
+      <div class="right-title">VIOLATIONS</div>
+    </div>
+    <div class="violation-list" id="violation-list">
+      <div class="no-violations">No violations yet</div>
+    </div>
+
+    <!-- Downloads (after done) -->
+    <div class="download-strip hidden" id="download-strip">
+      <a class="dl-btn" id="dl-video" href="#">⬇ VIDEO</a>
+      <a class="dl-btn" id="dl-csv"   href="#">⬇ CSV</a>
     </div>
   </aside>
 
-  <!-- ── Main Content ── -->
-  <main class="main">
-    <!-- Header -->
-    <header class="topbar">
-      <div>
-        <h1 class="page-title">Smart Surveillance & Speed Detection</h1>
-        <p class="page-sub">Upload a traffic video · detect violations · export report</p>
-      </div>
-      <div class="device-badge" id="device-badge">CPU</div>
-    </header>
+</div><!-- /layout -->
 
-    <!-- ── Upload Section ── -->
-    <section id="upload-section" class="card">
-      <div class="card-header">
-        <h2>Upload Traffic Video</h2>
-        <span class="badge badge-info">Step 1</span>
-      </div>
+<!-- ══════════ HISTORY DRAWER ═════════════════════════════════════════════ -->
+<div class="history-drawer hidden" id="history-drawer">
+  <div class="drawer-header">
+    <span>SESSION HISTORY</span>
+    <button class="drawer-close" id="history-close-btn">✕</button>
+  </div>
+  <div id="history-list"></div>
+</div>
+<div class="drawer-backdrop hidden" id="drawer-backdrop"></div>
 
-      <div class="drop-zone" id="drop-zone">
-        <input type="file" id="file-input" accept="video/*" hidden />
-        <div class="drop-icon">
-          <svg viewBox="0 0 48 48"><path d="M24 4v28M14 14l10-10 10 10" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 36v4a2 2 0 002 2h28a2 2 0 002-2v-4" stroke-width="3" stroke-linecap="round"/></svg>
-        </div>
-        <p class="drop-title">Drag & drop your video here</p>
-        <p class="drop-sub">or <button class="link-btn" id="browse-btn">browse files</button></p>
-        <p class="drop-hint">MP4, AVI, MOV · max 2 GB</p>
-      </div>
-
-      <!-- Selected file info -->
-      <div class="file-info hidden" id="file-info">
-        <svg viewBox="0 0 24 24" class="file-icon"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
-        <div>
-          <div class="file-name" id="file-name">—</div>
-          <div class="file-size" id="file-size">—</div>
-        </div>
-        <button class="btn-ghost" id="clear-file">✕</button>
-      </div>
-
-      <!-- Config row -->
-      <div class="config-row">
-        <label class="config-item">
-          <span>Speed Limit (km/h)</span>
-          <input type="number" id="speed-limit" value="50" min="1" max="200" class="input-sm" />
-        </label>
-        <label class="config-item">
-          <span>Detection Confidence</span>
-          <input type="range" id="conf-threshold" value="40" min="10" max="90" step="5" class="slider" />
-          <span id="conf-val" class="conf-val">40%</span>
-        </label>
-      </div>
-
-      <button class="btn-primary" id="process-btn" disabled>
-        <svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
-        Start Processing
-      </button>
-    </section>
-
-    <!-- ── Progress Section ── -->
-    <section id="progress-section" class="card hidden">
-      <div class="card-header">
-        <h2>Processing Video</h2>
-        <span class="badge badge-warn" id="progress-badge">Running</span>
-      </div>
-
-      <div class="progress-wrap">
-        <div class="progress-bar-bg">
-          <div class="progress-bar-fill" id="progress-fill" style="width:0%"></div>
-        </div>
-        <span class="progress-pct" id="progress-pct">0%</span>
-      </div>
-
-      <div class="progress-stats">
-        <div class="stat-chip">
-          <span class="stat-label">Frames</span>
-          <span class="stat-val" id="stat-frames">0 / 0</span>
-        </div>
-        <div class="stat-chip">
-          <span class="stat-label">Processing FPS</span>
-          <span class="stat-val" id="stat-fps">—</span>
-        </div>
-        <div class="stat-chip">
-          <span class="stat-label">Job ID</span>
-          <span class="stat-val mono" id="stat-job">—</span>
-        </div>
-      </div>
-
-      <p class="cpu-note">
-        ⚙️ <strong>CPU mode active.</strong> Processing takes 3–10× real-time on CPU — this is expected.
-        A 30-second clip typically takes 2–5 minutes. Grab a coffee ☕
-      </p>
-    </section>
-
-    <!-- ── Results Section ── -->
-    <section id="results-section" class="card hidden">
-      <div class="card-header">
-        <h2>Processing Complete</h2>
-        <span class="badge badge-ok">Done</span>
-      </div>
-
-      <!-- Summary stats -->
-      <div class="summary-grid">
-        <div class="summary-card">
-          <div class="summary-num" id="res-frames">—</div>
-          <div class="summary-lbl">Frames Processed</div>
-        </div>
-        <div class="summary-card">
-          <div class="summary-num" id="res-duration">—</div>
-          <div class="summary-lbl">Video Duration</div>
-        </div>
-        <div class="summary-card">
-          <div class="summary-num" id="res-proc-time">—</div>
-          <div class="summary-lbl">Processing Time</div>
-        </div>
-        <div class="summary-card danger">
-          <div class="summary-num" id="res-offenders">—</div>
-          <div class="summary-lbl">Total Violations</div>
-        </div>
-        <div class="summary-card warn">
-          <div class="summary-num" id="res-speeding">—</div>
-          <div class="summary-lbl">Speeding</div>
-        </div>
-        <div class="summary-card warn">
-          <div class="summary-num" id="res-redlight">—</div>
-          <div class="summary-lbl">Red Light</div>
-        </div>
-      </div>
-
-      <!-- Video preview -->
-      <div class="video-preview-wrap">
-        <video id="output-video" controls class="output-video">
-          Your browser does not support the video tag.
-        </video>
-      </div>
-
-      <!-- Downloads -->
-      <div class="download-row">
-        <a class="btn-secondary" id="dl-video" href="#" download>
-          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-          Download Annotated Video
-        </a>
-        <a class="btn-secondary" id="dl-csv" href="#" download>
-          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/></svg>
-          Download Offender CSV
-        </a>
-        <button class="btn-ghost" id="new-job-btn">
-          <svg viewBox="0 0 24 24"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
-          Process Another
-        </button>
-      </div>
-    </section>
-
-    <!-- ── Violations Table ── -->
-    <section id="offenders-section" class="card hidden">
-      <div class="card-header">
-        <h2>Violation Log</h2>
-        <span class="badge badge-danger" id="offender-count-badge">0</span>
-      </div>
-      <div class="table-wrap">
-        <table class="data-table" id="offenders-table">
-          <thead>
-            <tr>
-              <th>Track ID</th>
-              <th>Vehicle Type</th>
-              <th>Plate</th>
-              <th>Speed (km/h)</th>
-              <th>Violation</th>
-              <th>Timestamp</th>
-            </tr>
-          </thead>
-          <tbody id="offenders-body">
-            <tr><td colspan="6" class="empty-msg">No violations detected yet.</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-  </main>
-
-  <script src="/static/js/app.js"></script>
+<script src="/static/js/app.js"></script>
 </body>
 </html>

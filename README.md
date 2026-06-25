@@ -123,7 +123,7 @@ This application is designed to work on CPU-only machines. Here is what changes 
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/smart-surveillance.git
+git clone https://github.com/wailee2/smart-surveillance.git
 cd smart-surveillance
 ```
 

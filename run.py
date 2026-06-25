@@ -16,7 +16,7 @@ if __name__ == "__main__":
         "app.main:app",
         host="0.0.0.0",
         port=8000,
-        reload=False,          # set True during development
+        reload=True,          # set True during development
         workers=1,             # single worker — models are loaded in-process
         log_level="info",
     )

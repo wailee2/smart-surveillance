@@ -1,292 +1,533 @@
-/* ── Smart Surveillance — Frontend App ──────────────────────────────────── */
-
 "use strict";
+/* ═══════════════════════════════════════════════════════════════════════════
+   Smart Surveillance System v3 — Control Room UI
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-// ── DOM refs ───────────────────────────────────────────────────────────────
-const dropZone       = document.getElementById("drop-zone");
-const fileInput      = document.getElementById("file-input");
-const browseBtn      = document.getElementById("browse-btn");
-const fileInfo       = document.getElementById("file-info");
-const fileName       = document.getElementById("file-name");
-const fileSize       = document.getElementById("file-size");
-const clearFileBtn   = document.getElementById("clear-file");
-const processBtn     = document.getElementById("process-btn");
-const speedLimitInp  = document.getElementById("speed-limit");
-const confSlider     = document.getElementById("conf-threshold");
-const confVal        = document.getElementById("conf-val");
+// ── Clock ───────────────────────────────────────────────────────────────────
+function tickClock() {
+  const now = new Date();
+  document.getElementById("clock").textContent =
+    [now.getHours(), now.getMinutes(), now.getSeconds()]
+      .map(n => String(n).padStart(2, "0")).join(":");
+}
+tickClock();
+setInterval(tickClock, 1000);
 
-const progressSection = document.getElementById("progress-section");
-const progressFill    = document.getElementById("progress-fill");
-const progressPct     = document.getElementById("progress-pct");
-const progressBadge   = document.getElementById("progress-badge");
-const statFrames      = document.getElementById("stat-frames");
-const statFps         = document.getElementById("stat-fps");
-const statJob         = document.getElementById("stat-job");
+// ── Health check ────────────────────────────────────────────────────────────
+const sysStatus  = document.getElementById("sys-status");
+const sysDevice  = document.getElementById("sys-device");
+const sysModels  = document.getElementById("sys-models");
+const badge      = document.getElementById("analyzing-badge");
 
-const resultsSection  = document.getElementById("results-section");
-const offendersSection= document.getElementById("offenders-section");
-const offendersBody   = document.getElementById("offenders-body");
-const offenderCountBadge = document.getElementById("offender-count-badge");
-const outputVideo     = document.getElementById("output-video");
-const dlVideoBtn      = document.getElementById("dl-video");
-const dlCsvBtn        = document.getElementById("dl-csv");
-const newJobBtn       = document.getElementById("new-job-btn");
-
-const statusDot       = document.getElementById("status-dot");
-const statusText      = document.getElementById("status-text");
-const deviceBadge     = document.getElementById("device-badge");
-
-// ── State ──────────────────────────────────────────────────────────────────
-let selectedFile = null;
-let pollInterval = null;
-let currentJobId = null;
-
-// ── Health check ───────────────────────────────────────────────────────────
 async function checkHealth() {
   try {
-    const r = await fetch("/health");
-    const data = await r.json();
-    if (data.status === "ok") {
-      statusDot.className = "status-dot ok";
-      statusText.textContent = data.models_loaded ? "Ready" : "Models loading…";
-      deviceBadge.textContent = data.cpu_mode ? "CPU Mode" : "GPU Mode";
-      deviceBadge.style.color = data.cpu_mode ? "var(--warn)" : "var(--ok)";
-    } else {
-      statusDot.className = "status-dot error";
-      statusText.textContent = "Error";
-    }
+    const d = await fetch("/health").then(r => r.json());
+    sysStatus.textContent = "ONLINE";
+    sysStatus.className   = "sys-val ok";
+    sysDevice.textContent = d.cpu_mode ? "CPU" : "GPU";
+    sysModels.textContent = d.models_loaded ? "LOADED" : "LOADING…";
   } catch {
-    statusDot.className = "status-dot error";
-    statusText.textContent = "Offline";
+    sysStatus.textContent = "OFFLINE";
+    sysStatus.className   = "sys-val err";
   }
 }
 checkHealth();
-setInterval(checkHealth, 30_000);
+setInterval(checkHealth, 20000);
 
-// ── Slider live value ──────────────────────────────────────────────────────
-confSlider.addEventListener("input", () => {
-  confVal.textContent = confSlider.value + "%";
-});
+// ── VTL ─────────────────────────────────────────────────────────────────────
+const vtlEnabled   = document.getElementById("vtl-enabled");
+const vtlModeLabel = document.getElementById("vtl-mode-label");
+const tlBulbs      = { red: document.getElementById("tl-red"), amber: document.getElementById("tl-amber"), green: document.getElementById("tl-green") };
+const tlBtns       = { red: document.getElementById("vtl-red-btn"), amber: document.getElementById("vtl-amber-btn"), green: document.getElementById("vtl-green-btn") };
+let currentSignal  = "green";
 
-// ── File selection ─────────────────────────────────────────────────────────
-browseBtn.addEventListener("click", () => fileInput.click());
-fileInput.addEventListener("change", () => handleFile(fileInput.files[0]));
-
-dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
-dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
-dropZone.addEventListener("drop", e => {
-  e.preventDefault();
-  dropZone.classList.remove("drag-over");
-  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
-});
-dropZone.addEventListener("click", e => {
-  if (e.target !== browseBtn) fileInput.click();
-});
-
-function handleFile(file) {
-  if (!file) return;
-  if (!file.type.startsWith("video/")) {
-    alert("Please select a video file.");
-    return;
-  }
-  selectedFile = file;
-  fileName.textContent = file.name;
-  fileSize.textContent = formatBytes(file.size);
-  fileInfo.classList.remove("hidden");
-  dropZone.classList.add("hidden");
-  processBtn.disabled = false;
+function applySignalUI(color) {
+  currentSignal = color;
+  // Bulbs
+  Object.entries(tlBulbs).forEach(([c, b]) => b.classList.toggle("active", c === color));
+  // Buttons
+  Object.entries(tlBtns).forEach(([c, b]) => b.classList.toggle("active", c === color));
+  // Mode label
+  const labels = { red: "● RED – violation mode active", amber: "● AMBER – caution mode", green: "● GREEN – normal mode" };
+  vtlModeLabel.textContent  = labels[color];
+  vtlModeLabel.className    = `vtl-mode-label ${color}`;
 }
 
-clearFileBtn.addEventListener("click", () => {
-  selectedFile = null;
-  fileInput.value = "";
-  fileInfo.classList.add("hidden");
-  dropZone.classList.remove("hidden");
-  processBtn.disabled = true;
+async function setVtlColor(color) {
+  applySignalUI(color);
+  try {
+    await fetch(`/api/vtl?color=${color}&override=${vtlEnabled.checked}`, { method: "POST" });
+  } catch {}
+}
+
+Object.entries(tlBtns).forEach(([c, b]) => b.addEventListener("click", () => setVtlColor(c)));
+vtlEnabled.addEventListener("change", () => setVtlColor(currentSignal));
+
+// Sync VTL state on load
+fetch("/api/vtl").then(r => r.json()).then(d => applySignalUI(d.color)).catch(() => {});
+
+// ── File selection ───────────────────────────────────────────────────────────
+const fileInput       = document.getElementById("file-input");
+const browseBtn       = document.getElementById("browse-btn");
+const uploadPlaceholder = document.getElementById("upload-placeholder");
+const footerFile      = document.getElementById("footer-file");
+
+let selectedFile = null;
+
+browseBtn.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", () => {
+  if (fileInput.files[0]) selectFile(fileInput.files[0]);
 });
 
-// ── Process ────────────────────────────────────────────────────────────────
-processBtn.addEventListener("click", async () => {
-  if (!selectedFile) return;
+// Drag-and-drop onto the feed area
+const feedWrap = document.getElementById("feed-wrap");
+feedWrap.addEventListener("dragover", e => { e.preventDefault(); feedWrap.style.outline = "2px solid var(--accent)"; });
+feedWrap.addEventListener("dragleave", () => feedWrap.style.outline = "");
+feedWrap.addEventListener("drop", e => {
+  e.preventDefault();
+  feedWrap.style.outline = "";
+  if (e.dataTransfer.files[0]) selectFile(e.dataTransfer.files[0]);
+});
 
-  const formData = new FormData();
-  formData.append("file", selectedFile);
+function selectFile(file) {
+  if (!file.type.startsWith("video/")) { alert("Please select a video file."); return; }
+  selectedFile = file;
+  footerFile.textContent = file.name;
+  // Show first frame for stop-line drawing
+  showFirstFrame(file);
+  uploadPlaceholder.classList.add("hidden");
+}
 
-  // Patch config via URL params (simple approach for demo)
-  const speed = parseInt(speedLimitInp.value) || 50;
-  const conf  = (parseInt(confSlider.value) || 40) / 100;
+// ── First-frame preview for stop-line drawing ────────────────────────────────
+const drawCanvas  = document.getElementById("draw-canvas");
+const drawCtx     = drawCanvas.getContext("2d");
+const lineStatusBox = document.getElementById("line-status-box");
+const lineCoords  = document.getElementById("line-coords");
+const stopLineYInput = document.getElementById("stop-line-y");
+const drawLineBtn = document.getElementById("draw-line-btn");
 
-  // Show progress
-  showSection("progress");
-  progressFill.style.width = "0%";
-  progressPct.textContent = "0%";
-  statJob.textContent = "Submitting…";
-  progressBadge.textContent = "Running";
-  processBtn.disabled = true;
+let firstFrameImg = null;     // ImageBitmap of frame 0
+let stopLineY_canvas = null;  // Y in canvas-native pixels
+let isDragging = false;
 
-  try {
-    const r = await fetch(`/api/process?speed_limit=${speed}&conf=${conf}`, {
-      method: "POST",
-      body: formData,
-    });
-    if (!r.ok) throw new Error(await r.text());
-    const data = await r.json();
-    currentJobId = data.job_id;
-    statJob.textContent = currentJobId;
-    startPolling(currentJobId);
-  } catch (err) {
-    alert("Upload failed: " + err.message);
-    showSection("upload");
-    processBtn.disabled = false;
+function showFirstFrame(file) {
+  const video = document.createElement("video");
+  video.src = URL.createObjectURL(file);
+  video.currentTime = 0.5;
+  video.muted = true;
+  video.addEventListener("seeked", async () => {
+    // Draw to off-screen canvas to grab ImageBitmap
+    const tmp = document.createElement("canvas");
+    tmp.width  = video.videoWidth;
+    tmp.height = video.videoHeight;
+    tmp.getContext("2d").drawImage(video, 0, 0);
+    firstFrameImg = await createImageBitmap(tmp);
+    URL.revokeObjectURL(video.src);
+
+    // Size the overlay canvas
+    drawCanvas.width  = video.videoWidth;
+    drawCanvas.height = video.videoHeight;
+    drawCanvas.classList.remove("hidden");
+    redrawCanvas();
+  }, { once: true });
+  video.load();
+}
+
+function redrawCanvas() {
+  if (!firstFrameImg) return;
+  drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  drawCtx.drawImage(firstFrameImg, 0, 0);
+  if (stopLineY_canvas !== null) {
+    drawCtx.strokeStyle = "#ff2d2d";
+    drawCtx.lineWidth   = 3;
+    drawCtx.beginPath();
+    drawCtx.moveTo(0, stopLineY_canvas);
+    drawCtx.lineTo(drawCanvas.width, stopLineY_canvas);
+    drawCtx.stroke();
+    drawCtx.fillStyle = "#ff2d2d";
+    drawCtx.font      = "bold 16px 'Share Tech Mono'";
+    drawCtx.fillText(`STOP LINE  Y=${stopLineY_canvas}`, 10, stopLineY_canvas - 8);
+  }
+}
+
+// Click on canvas to set stop line
+drawCanvas.addEventListener("mousedown", e => { isDragging = true; updateStopLine(e); });
+drawCanvas.addEventListener("mousemove", e => { if (isDragging) updateStopLine(e); });
+drawCanvas.addEventListener("mouseup",   () => { isDragging = false; });
+
+function updateStopLine(e) {
+  const rect  = drawCanvas.getBoundingClientRect();
+  const scaleY = drawCanvas.height / rect.height;
+  const y = Math.round((e.clientY - rect.top) * scaleY);
+  stopLineY_canvas = y;
+  stopLineYInput.value = y;
+  lineStatusBox.classList.remove("hidden");
+  lineCoords.textContent = `[0,${y}] → [${drawCanvas.width},${y}]`;
+  redrawCanvas();
+}
+
+drawLineBtn.addEventListener("click", () => {
+  if (!firstFrameImg) { alert("Select a video first."); return; }
+  drawCanvas.classList.remove("hidden");
+  redrawCanvas();
+});
+
+// Manual Y input sync
+stopLineYInput.addEventListener("input", () => {
+  const y = parseInt(stopLineYInput.value);
+  if (!isNaN(y)) {
+    stopLineY_canvas = y;
+    lineStatusBox.classList.remove("hidden");
+    lineCoords.textContent = `Y = ${y}px`;
+    redrawCanvas();
   }
 });
 
-// ── Polling ────────────────────────────────────────────────────────────────
+// ── Conf slider ──────────────────────────────────────────────────────────────
+const confSlider = document.getElementById("conf-slider");
+const confVal    = document.getElementById("conf-val");
+confSlider.addEventListener("input", () => confVal.textContent = confSlider.value + "%");
+
+// ── Start Analysis ───────────────────────────────────────────────────────────
+const startBtn   = document.getElementById("start-btn");
+const abortBtn   = document.getElementById("abort-btn");
+const livePreview = document.getElementById("live-preview");
+const videoResult = document.getElementById("output-video");
+const videoResultWrap = document.getElementById("video-result-wrap");
+const violationFlash  = document.getElementById("violation-flash");
+const violationAlert  = document.getElementById("violation-alert");
+const downloadStrip   = document.getElementById("download-strip");
+const feedLabel       = document.getElementById("feed-label");
+const feedMeta        = document.getElementById("feed-meta");
+const footerJob       = document.getElementById("footer-job");
+const footerTime      = document.getElementById("footer-time");
+
+// Stats
+const statFrames     = document.getElementById("stat-frames");
+const statViolations = document.getElementById("stat-violations");
+const statFpsVal     = document.getElementById("stat-fps-val");
+const statProgress   = document.getElementById("stat-progress");
+const progressFill   = document.getElementById("progress-fill");
+
+let currentJobId  = null;
+let pollInterval  = null;
+let sseSource     = null;
+let violationCount = 0;
+let aborted       = false;
+
+startBtn.addEventListener("click", async () => {
+  if (!selectedFile) { alert("Select a video file first."); return; }
+
+  const fd = new FormData();
+  fd.append("file", selectedFile);
+  const stopY = stopLineYInput.value;
+  if (stopY) fd.append("stop_line_y", parseInt(stopY));
+  fd.append("vtl_override", document.getElementById("vtl-override-proc").checked);
+  fd.append("speed_limit",  parseFloat(document.getElementById("speed-limit").value) || 50);
+  fd.append("conf_threshold", (parseInt(confSlider.value) || 40) / 100);
+
+  // Reset UI
+  violationCount = 0; aborted = false;
+  statFrames.textContent = "0";
+  statViolations.textContent = "0";
+  statFpsVal.textContent = "—";
+  statProgress.textContent = "0%";
+  progressFill.style.width = "0%";
+  document.getElementById("violation-list").innerHTML = "<div class='no-violations'>Processing…</div>";
+  violationAlert.classList.add("hidden");
+  downloadStrip.classList.add("hidden");
+  videoResultWrap.classList.add("hidden");
+  violationFlash.classList.add("hidden");
+  livePreview.classList.add("hidden");
+  drawCanvas.classList.add("hidden");
+  badge.className = "analyzing-badge active";
+  badge.innerHTML = "<span class='pulse-dot'></span> ANALYZING";
+  startBtn.classList.add("hidden");
+  abortBtn.classList.remove("hidden");
+
+  try {
+    const res = await fetch("/api/process", { method: "POST", body: fd });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    currentJobId = data.job_id;
+    footerJob.textContent = `JOB: ${currentJobId}`;
+
+    // Start MJPEG preview
+    livePreview.src = `/api/job/${currentJobId}/preview?t=${Date.now()}`;
+    livePreview.classList.remove("hidden");
+    feedLabel.textContent = "LIVE FEED";
+    feedMeta.textContent  = selectedFile.name;
+
+    startSSE(currentJobId);
+    startPolling(currentJobId);
+  } catch (err) {
+    alert("Failed to start: " + err.message);
+    resetUI();
+  }
+});
+
+abortBtn.addEventListener("click", async () => {
+  aborted = true;
+  clearInterval(pollInterval);
+  if (sseSource) sseSource.close();
+  livePreview.src = "";
+  resetUI();
+  badge.innerHTML = "<span class='pulse-dot'></span> ABORTED";
+  badge.className = "analyzing-badge";
+});
+
+// ── SSE — live violations ────────────────────────────────────────────────────
+function startSSE(jobId) {
+  if (sseSource) sseSource.close();
+  sseSource = new EventSource(`/api/job/${jobId}/events`);
+
+  sseSource.onmessage = e => {
+    const evt = JSON.parse(e.data);
+    if (evt.type === "violation") {
+      violationCount++;
+      statViolations.textContent = violationCount;
+
+      // Flash overlay
+      violationFlash.classList.remove("hidden");
+      violationAlert.classList.remove("hidden");
+      setTimeout(() => {
+        violationFlash.classList.add("hidden");
+        violationAlert.classList.add("hidden");
+      }, 2000);
+
+      // Push placeholder card immediately (snapshot comes after OCR)
+      pushViolationCard({
+        track_id:      evt.track_id,
+        vehicle_type:  evt.vehicle,
+        plate_number:  "PROCESSING…",
+        speed_kmh:     evt.speed,
+        violation_type: evt.violation,
+        timestamp_real: evt.timestamp,
+        snapshot_path:  null,
+      });
+
+      footerTime.textContent = `LAST: ${evt.timestamp}s`;
+    } else if (evt.type === "done") {
+      sseSource.close();
+    }
+  };
+  sseSource.onerror = () => sseSource.close();
+}
+
+// ── Polling ──────────────────────────────────────────────────────────────────
 function startPolling(jobId) {
   clearInterval(pollInterval);
-  pollInterval = setInterval(() => pollJob(jobId), 2000);
+  pollInterval = setInterval(() => pollJob(jobId), 1500);
 }
 
 async function pollJob(jobId) {
+  if (aborted) return;
   try {
-    const r = await fetch(`/api/job/${jobId}`);
-    if (!r.ok) return;
-    const data = await r.json();
+    const d = await fetch(`/api/job/${jobId}`).then(r => r.json());
+    const pct = d.progress || 0;
 
-    const pct = data.progress || 0;
+    statFrames.textContent   = (d.frame || 0).toLocaleString();
+    statProgress.textContent = pct + "%";
+    statFpsVal.textContent   = d.fps_proc > 0 ? d.fps_proc.toFixed(1) : "—";
     progressFill.style.width = pct + "%";
-    progressPct.textContent  = pct + "%";
+    if (d.total_frames) feedMeta.textContent = `${fmtNum(d.frame)} / ${fmtNum(d.total_frames)} frames`;
 
-    if (data.total_frames > 0) {
-      statFrames.textContent = `${data.frame.toLocaleString()} / ${data.total_frames.toLocaleString()}`;
-    }
-    if (data.fps_proc > 0) statFps.textContent = data.fps_proc.toFixed(2) + " fps";
-
-    if (data.status === "done") {
+    if (d.status === "done") {
       clearInterval(pollInterval);
-      renderResults(jobId, data.result);
-    } else if (data.status === "error") {
+      onJobDone(jobId, d.result);
+    } else if (d.status === "error") {
       clearInterval(pollInterval);
-      progressBadge.textContent = "Error";
-      progressBadge.className = "badge badge-danger";
-      alert("Processing error: " + (data.error || "Unknown error"));
-      showSection("upload");
-      processBtn.disabled = false;
+      alert("Processing error: " + (d.error || "Unknown error"));
+      resetUI();
     }
-  } catch {/* network hiccup — keep polling */}
+  } catch {}
 }
 
-// ── Results ────────────────────────────────────────────────────────────────
-function renderResults(jobId, result) {
-  document.getElementById("res-frames").textContent    = (result.frames_processed || 0).toLocaleString();
-  document.getElementById("res-duration").textContent  = formatDuration(result.duration_s || 0);
-  document.getElementById("res-proc-time").textContent = formatDuration(result.processing_time_s || 0);
-  document.getElementById("res-offenders").textContent = result.offenders_count || 0;
-  document.getElementById("res-speeding").textContent  = result.speeding_count  || 0;
-  document.getElementById("res-redlight").textContent  = result.red_light_count || 0;
+// ── Job done ─────────────────────────────────────────────────────────────────
+function onJobDone(jobId, result) {
+  badge.className = "analyzing-badge done";
+  badge.innerHTML = "<span class='pulse-dot'></span> COMPLETE";
 
-  // Video
-  const videoUrl = `/api/job/${jobId}/video`;
-  outputVideo.src = videoUrl;
-  dlVideoBtn.href = videoUrl;
-  dlVideoBtn.download = `${jobId}_annotated.mp4`;
+  // Hide live MJPEG, show final video player
+  livePreview.src = "";
+  livePreview.classList.add("hidden");
+  drawCanvas.classList.add("hidden");
+  videoResultWrap.classList.remove("hidden");
+  const videoUrl = `/api/job/${jobId}/video?t=${Date.now()}`;
+  videoResult.src = videoUrl;
+  videoResult.load();
 
-  // CSV
-  dlCsvBtn.href = `/api/job/${jobId}/csv`;
-  dlCsvBtn.download = `${jobId}_offenders.csv`;
+  // Download links
+  document.getElementById("dl-video").href = videoUrl;
+  document.getElementById("dl-csv").href   = `/api/job/${jobId}/csv`;
+  downloadStrip.classList.remove("hidden");
 
-  // Table
+  // Re-render violation cards with real OCR plates + snapshots
   const offenders = result.offenders || [];
-  offenderCountBadge.textContent = offenders.length;
-  renderOffendersTable(offenders);
-
-  showSection("results");
-}
-
-function renderOffendersTable(offenders) {
-  if (!offenders.length) {
-    offendersBody.innerHTML = `<tr><td colspan="6" class="empty-msg">No violations detected.</td></tr>`;
-    offendersSection.classList.add("hidden");
-    return;
+  if (offenders.length) {
+    document.getElementById("violation-list").innerHTML = "";
+    offenders.forEach(o => pushViolationCard(o, true));
+    statViolations.textContent = offenders.length;
+  } else {
+    document.getElementById("violation-list").innerHTML =
+      "<div class='no-violations'>No violations detected</div>";
   }
 
-  offendersSection.classList.remove("hidden");
-  offendersBody.innerHTML = offenders.map(o => {
-    const types = (o.violation_type || "").split(",").filter(Boolean);
-    const chips  = types.map(t => `<span class="vio-chip vio-${t.trim()}">${t.trim().replace("_", " ")}</span>`).join(" ");
-    const speed  = o.speed_kmh != null ? `<strong>${o.speed_kmh}</strong>` : "—";
-    const ts     = o.timestamp_real != null ? `${o.timestamp_real}s` : "—";
-    return `<tr>
-      <td class="mono">#${o.track_id}</td>
-      <td>${o.vehicle_type || "—"}</td>
-      <td class="mono">${o.plate_number || "—"}</td>
-      <td>${speed}</td>
-      <td>${chips}</td>
-      <td>${ts}</td>
-    </tr>`;
-  }).join("");
+  // Final stats update
+  statFrames.textContent   = fmtNum(result.frames_processed || 0);
+  statProgress.textContent = "100%";
+  progressFill.style.width = "100%";
+  feedMeta.textContent = `Done — ${fmtDur(result.processing_time_s || 0)}`;
+  feedLabel.textContent = "ANALYSIS COMPLETE";
+
+  startBtn.classList.remove("hidden");
+  abortBtn.classList.add("hidden");
 }
 
-// ── New job ────────────────────────────────────────────────────────────────
-newJobBtn.addEventListener("click", () => {
-  selectedFile = null;
-  fileInput.value = "";
-  currentJobId = null;
-  fileInfo.classList.add("hidden");
-  dropZone.classList.remove("hidden");
-  processBtn.disabled = true;
-  progressFill.style.width = "0%";
-  outputVideo.src = "";
-  showSection("upload");
+// ── Violation card builder ────────────────────────────────────────────────────
+function pushViolationCard(o, replace = false) {
+  const list = document.getElementById("violation-list");
+
+  // Clear "no violations" placeholder
+  if (list.querySelector(".no-violations")) list.innerHTML = "";
+
+  // If replace mode: remove any existing card for this track
+  if (replace) {
+    const existing = list.querySelector(`[data-tid="${o.track_id}"]`);
+    if (existing) existing.remove();
+  }
+
+  const types = (o.violation_type || "").split(",").filter(Boolean);
+  const cls   = types.length > 1 ? "both" : (types[0] || "");
+  const vioLabels = types.map(t =>
+    `<span class="vcard-vio ${t.trim()}">${t.trim() === "speeding" ? "🚨 SPEEDING" : "🚦 RED LIGHT"}</span>`
+  ).join(" ");
+
+  const snapHtml = o.snapshot_path
+    ? `<img class="vcard-snap" src="${o.snapshot_path}" alt="snap" loading="lazy"/>`
+    : `<div class="vcard-snap-ph">🚗</div>`;
+
+  const card = document.createElement("div");
+  card.className = `vcard ${cls}`;
+  card.dataset.tid = o.track_id;
+  card.innerHTML = `
+    ${snapHtml}
+    <div class="vcard-body">
+      <div class="vcard-plate">${o.plate_number || "—"}</div>
+      <div class="vcard-row"><span>${o.vehicle_type || "—"}</span><span>#${o.track_id}</span></div>
+      <div class="vcard-row"><span>${o.speed_kmh != null ? o.speed_kmh + " km/h" : "—"}</span><span>${o.timestamp_real != null ? o.timestamp_real + "s" : "—"}</span></div>
+      <div>${vioLabels}</div>
+    </div>`;
+
+  // Prepend (newest on top)
+  list.prepend(card);
+}
+
+// ── Reset UI ──────────────────────────────────────────────────────────────────
+function resetUI() {
+  badge.className = "analyzing-badge";
+  badge.innerHTML = "<span class='pulse-dot'></span> STANDBY";
+  startBtn.classList.remove("hidden");
+  abortBtn.classList.add("hidden");
+  livePreview.src = "";
+  livePreview.classList.add("hidden");
+}
+
+// ── History drawer ────────────────────────────────────────────────────────────
+const historyDrawer  = document.getElementById("history-drawer");
+const drawerBackdrop = document.getElementById("drawer-backdrop");
+const historyToggle  = document.getElementById("history-toggle-btn");
+const historyClose   = document.getElementById("history-close-btn");
+
+historyToggle.addEventListener("click", () => {
+  historyDrawer.classList.remove("hidden");
+  drawerBackdrop.classList.remove("hidden");
+  loadHistory();
 });
 
-// ── Section helper ─────────────────────────────────────────────────────────
-function showSection(name) {
-  const map = {
-    upload:    ["upload-section"],
-    progress:  ["upload-section", "progress-section"],
-    results:   ["results-section"],
-  };
-  // Hide all
-  ["upload-section", "progress-section", "results-section", "offenders-section"]
-    .forEach(id => document.getElementById(id)?.classList.add("hidden"));
-
-  (map[name] || []).forEach(id => document.getElementById(id)?.classList.remove("hidden"));
-
-  if (name === "results") {
-    // offenders section shown separately by renderResults
-    document.getElementById("results-section").classList.remove("hidden");
-  }
-
-  // Update nav
-  document.querySelectorAll(".nav-item").forEach(el => {
-    el.classList.toggle("active", el.dataset.section === name);
-  });
+function closeHistory() {
+  historyDrawer.classList.add("hidden");
+  drawerBackdrop.classList.add("hidden");
 }
 
-// ── Nav links ──────────────────────────────────────────────────────────────
-document.querySelectorAll(".nav-item").forEach(link => {
-  link.addEventListener("click", e => {
-    const section = link.dataset.section;
-    if (section === "results" && !currentJobId) { e.preventDefault(); return; }
-    if (section === "offenders") {
-      document.getElementById("offenders-section")?.classList.toggle("hidden");
-      e.preventDefault();
+historyClose.addEventListener("click", closeHistory);
+drawerBackdrop.addEventListener("click", closeHistory);
+
+async function loadHistory() {
+  const list = document.getElementById("history-list");
+  list.innerHTML = "<p style='padding:12px;font-family:var(--mono);font-size:10px;color:var(--text-dim)'>Loading…</p>";
+  try {
+    const sessions = await fetch("/api/sessions").then(r => r.json());
+    if (!sessions.length) {
+      list.innerHTML = "<p style='padding:12px;font-family:var(--mono);font-size:10px;color:var(--text-dim)'>No sessions yet.</p>";
       return;
     }
-  });
-});
-
-// ── Utils ──────────────────────────────────────────────────────────────────
-function formatBytes(n) {
-  if (n < 1024) return n + " B";
-  if (n < 1024 ** 2) return (n / 1024).toFixed(1) + " KB";
-  if (n < 1024 ** 3) return (n / 1024 ** 2).toFixed(1) + " MB";
-  return (n / 1024 ** 3).toFixed(2) + " GB";
+    list.innerHTML = sessions.map(s => `
+      <div class="h-row" onclick="restoreSession('${s.job_id}')">
+        <div class="h-dot ${s.status || 'queued'}"></div>
+        <div class="h-info">
+          <div class="h-fname">${s.filename || s.job_id}</div>
+          <div class="h-meta">${s.created_at || ""} · ${s.duration_s != null ? fmtDur(s.duration_s) : ""}</div>
+        </div>
+        <div class="h-badges">
+          ${s.speeding_count  ? `<span class="h-badge red">${s.speeding_count}🚨</span>` : ""}
+          ${s.red_light_count ? `<span class="h-badge amber">${s.red_light_count}🚦</span>` : ""}
+        </div>
+      </div>`).join("");
+  } catch {
+    list.innerHTML = "<p style='padding:12px;font-family:var(--mono);font-size:10px;color:var(--red)'>Failed to load.</p>";
+  }
 }
 
-function formatDuration(s) {
+async function restoreSession(jobId) {
+  closeHistory();
+  try {
+    const d = await fetch(`/api/job/${jobId}`).then(r => r.json());
+    if (d.status === "done" && d.result) {
+      currentJobId = jobId;
+      violationCount = d.result.offenders_count || 0;
+
+      // Show the final video
+      videoResultWrap.classList.remove("hidden");
+      livePreview.classList.add("hidden");
+      drawCanvas.classList.add("hidden");
+      uploadPlaceholder.classList.add("hidden");
+      const videoUrl = `/api/job/${jobId}/video?t=${Date.now()}`;
+      videoResult.src = videoUrl;
+      videoResult.load();
+
+      document.getElementById("dl-video").href = videoUrl;
+      document.getElementById("dl-csv").href   = `/api/job/${jobId}/csv`;
+      downloadStrip.classList.remove("hidden");
+
+      // Rebuild cards
+      document.getElementById("violation-list").innerHTML = "";
+      (d.result.offenders || []).forEach(o => pushViolationCard(o, false));
+      statViolations.textContent = violationCount;
+      statFrames.textContent     = fmtNum(d.result.frames_processed || 0);
+      statProgress.textContent   = "100%";
+      progressFill.style.width   = "100%";
+      footerJob.textContent      = `JOB: ${jobId}`;
+      feedLabel.textContent      = "RESTORED SESSION";
+      badge.className = "analyzing-badge done";
+      badge.innerHTML = "<span class='pulse-dot'></span> COMPLETE";
+    } else {
+      alert(`Session ${jobId}: status = ${d.status}`);
+    }
+  } catch {
+    alert("Could not restore session " + jobId);
+  }
+}
+
+// Expose for inline onclick
+window.restoreSession = restoreSession;
+
+// ── Utils ─────────────────────────────────────────────────────────────────────
+function fmtDur(s) {
+  if (!s) return "0s";
   if (s < 60) return s.toFixed(1) + "s";
-  const m = Math.floor(s / 60), sec = Math.round(s % 60);
-  return `${m}m ${sec}s`;
+  return `${Math.floor(s/60)}m ${Math.round(s%60)}s`;
+}
+function fmtNum(n) {
+  return Number(n).toLocaleString();
 }

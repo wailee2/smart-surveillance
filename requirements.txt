@@ -11,7 +11,6 @@ supervision>=0.21.0          # detection utilities + annotators
 opencv-python-headless>=4.10.0
 
 # ── Deep Learning (CPU) ───────────────────────────────────────────────────
-# ── Deep Learning (CPU) ───────────────────────────────────────────────────
 # Install PyTorch CPU-only build to keep the image lean.
 # On a CUDA machine, replace with:
 #   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
