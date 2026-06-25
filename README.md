@@ -78,10 +78,8 @@ This application is designed to work on CPU-only machines. Here is what changes 
 |-----------|----------|--------------------------|
 | Optical Flow | RAFT Large (~30 RAFT iterations) | OpenCV Farneback (single-pass, ~30× faster) |
 | Depth Updates | Every 20 frames | Every 40 frames |
-| Frame Baseline | 20-frame gap | 30-frame gap |
 | YOLO Inference | CUDA tensors | CPU tensors |
 | EasyOCR | GPU-accelerated | CPU only |
-| Expected Speed | ~5–15 fps | ~0.3–1.5 fps |
 
 **Rule of thumb on CPU:** expect 3–10× real-time. A 30-second clip takes roughly 2–8 minutes depending on resolution and hardware.
 
@@ -340,37 +338,28 @@ All values can be set in `.env` or passed as environment variables.
 
 ## ⚠️ Limitations
 
-1. **Speed accuracy is approximate.** The system uses monocular relative depth (no stereo or LiDAR). Speed estimates are best understood as relative indicators rather than precision measurements. Expect ±20–40% error depending on scene geometry.
+1. **Demo speed limit is manually configured.** The current `speed_limit_kmh` value is intended for demonstration purposes only. If deployed on a real road, the configured limit may not match the legally enforced speed limit, potentially resulting in incorrect violation classifications.
 
-2. **Farneback flow is noisier than RAFT.** On CPU, Farneback dense flow is used as a compromise between speed and accuracy. RAFT would produce more accurate motion vectors but is 20–50× slower on CPU.
+2. **No real-world timestamp logging.** The `timestamp_real` field is currently recorded as `None`. Only frame numbers are stored, meaning violation records cannot be directly linked to actual date and time information.
 
-3. **Single camera, no calibration.** No camera intrinsic/extrinsic parameters are used. The depth model produces a relative map, not metric depth. A calibrated camera would significantly improve speed accuracy.
+3. **Relative depth estimation drifts over time.** The system relies on monocular depth estimation, which provides only relative depth information. Depth values may vary between frames due to lighting changes, camera motion, and scene complexity, reducing consistency in distance-based calculations.
 
-4. **OCR struggles with motion blur and low resolution.** Plates captured at high speed or low resolution may return `UNREADABLE`. Slowing the video or using a higher-resolution source helps.
-
-5. **Tracking ID drift.** ByteTrack can lose a track and reassign a new ID if occlusion is long. This may result in the same physical vehicle appearing as two entries in the log.
-
-6. **CPU processing is slow.** A 60-second 1080p clip can take 10–20 minutes on a modern CPU. This is a demo application, not a real-time system on CPU.
-
-7. **Fixed ROI.** The detection region of interest is fixed to the middle 50% of the frame height. Videos where vehicles occupy the top or bottom 25% may have missed detections.
-
-8. **No multi-lane differentiation.** Speed is estimated per track without lane assignment.
+4. **RAFT processes the entire frame.** Optical flow is computed across the full image even though speed estimation only requires vehicle regions. This results in unnecessary GPU/CPU usage and longer processing times.
 
 ---
 
 ## 💡 Possible Solutions to Limitations
 
-| Limitation | Possible Solution |
-|------------|-------------------|
-| Speed accuracy | Add camera calibration (OpenCV `calibrateCamera`); use stereo depth or a known reference object size |
-| Slow CPU processing | Use a dedicated GPU; or deploy on a cloud GPU instance (Google Colab, RunPod, AWS g4dn) |
-| Farneback noise | On GPU, RAFT is auto-selected; alternatively use PWC-Net which is faster than RAFT |
-| OCR failures | Pre-process plate crops: super-resolution (Real-ESRGAN), histogram equalisation, perspective correction |
-| Tracking drift | Tune ByteTrack parameters; use ReID (Re-Identification) models to re-link lost tracks |
-| Fixed ROI | Make ROI user-configurable via the UI; add a drag-to-draw ROI selector |
-| Single camera | Add a second camera angle for cross-validation; use a GPS-equipped drone for absolute speed |
+| Limitation                      | Possible Solution                                                                                                               |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Demo speed limit                | Integrate GPS/map services or a road metadata database to automatically retrieve legal speed limits for the deployment location |
+| No real timestamps              | Record system time during processing and store timestamps alongside each detected violation                                     |
+| Relative depth drift            | Use camera calibration, known road measurements, stereo cameras, or LiDAR to obtain more reliable metric depth estimates        |
+| Full-frame RAFT processing      | Run RAFT only on vehicle ROIs detected by YOLO, reducing computational cost and improving inference speed                       |
+| Approximate distance estimation | Use lane markings, stop lines, or surveyed reference points to improve pixel-to-meter conversion accuracy                       |
+| Scalability limitations         | Deploy the system on dedicated GPUs or cloud platforms and implement optimized inference pipelines                              |
+| Environmental sensitivity       | Apply periodic recalibration and adaptive scene normalization to reduce the impact of lighting and weather variations           |
 
----
 
 ## 🔗 References
 
@@ -378,7 +367,6 @@ All values can be set in `.env` or passed as environment variables.
 - **ByteTrack**: Zhang et al., 2022 — https://arxiv.org/abs/2110.06864
 - **Depth Anything V2**: Yang et al., 2024 — https://depth-anything-v2.github.io
 - **RAFT Optical Flow**: Teed & Deng, 2020 — https://arxiv.org/abs/2003.12039
-- **Farneback Optical Flow**: Farneback, 2003 — OpenCV docs
 - **EasyOCR**: https://github.com/JaidedAI/EasyOCR
 - **FastAPI**: https://fastapi.tiangolo.com
 - **Supervision**: https://supervision.roboflow.com
